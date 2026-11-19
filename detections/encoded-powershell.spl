@@ -1,0 +1,27 @@
+```
+  Detection : Encoded / obfuscated PowerShell execution
+  MITRE     : T1059.001 Command and Scripting Interpreter: PowerShell
+              T1027     Obfuscated Files or Information
+  Data      : Sysmon Event ID 1 (Process Create)
+  Why       : Attackers base64-encode PowerShell to hide what it does from
+              humans and simple keyword detections.
+  Severity  : High
+  Author    : Ifeanyi Solomon Uneze
+```
+index=sysmon EventCode=1 (Image="*\\powershell.exe" OR Image="*\\pwsh.exe")
+| regex CommandLine="(?i)\s-(e|ec|enc|encodedcommand)\s|frombase64string"
+| rex field=CommandLine "(?i)\s-e\w*\s+(?<encoded_payload>[A-Za-z0-9+/=]{20,})"
+| eval suspicious_parent=if(match(ParentImage, "(?i)(winword|excel|powerpnt|outlook|mshta|wscript|cscript)\.exe$"), "YES", "no")
+| table _time host User ParentImage suspicious_parent CommandLine encoded_payload
+| sort - _time
+
+```
+  TRIAGE
+  1. Decode encoded_payload in CyberChef: From Base64 -> Decode text (UTF-16LE).
+  2. suspicious_parent = YES (Office / script host) -> likely phishing payload. Escalate.
+  3. Look for a network connection (Sysmon EID 3) from the same host right after.
+
+  TUNING
+  - Some management tools (SCCM, Intune, monitoring agents) legitimately use -enc.
+    Exclude them by ParentImage + User, never by command line alone.
+```
