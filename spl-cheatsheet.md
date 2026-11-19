@@ -59,7 +59,7 @@ index=<where> sourcetype=<what> <filters>     ← 1. narrow the data FIRST (fast
 
 ## 🧠 Investigation pivots
 
-```spl
+~~~spl
 ``` Everything a host did around the time of an alert ```
 index=* host="WIN-LAB-01" earliest=-15m@m latest=+15m@m
 | table _time sourcetype EventCode Image CommandLine DestinationIp
@@ -69,7 +69,7 @@ index=sysmon Hashes="*<SHA256>*" | stats count BY host User Image
 
 ``` Rare parent -> child process pairs (hunting) ```
 index=sysmon EventCode=1 | rare limit=20 ParentImage Image
-```
+~~~
 
 ---
 ⬅️ Back to the [detection library](README.md)
