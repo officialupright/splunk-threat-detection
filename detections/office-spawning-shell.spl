@@ -1,0 +1,30 @@
+```
+  Detection : Microsoft Office application spawning a shell / script host
+  MITRE     : T1566.001 Phishing: Spearphishing Attachment
+              T1204.002 User Execution: Malicious File
+  Data      : Sysmon Event ID 1 (Process Create)
+  Why       : Word or Excel should almost never launch cmd, PowerShell or mshta.
+              When they do, a malicious macro is the most likely cause.
+  Severity  : High
+  Author    : Ifeanyi Solomon Uneze
+```
+index=sysmon EventCode=1
+    ParentImage IN ("*\\winword.exe", "*\\excel.exe", "*\\powerpnt.exe", "*\\outlook.exe", "*\\onenote.exe")
+    Image IN ("*\\cmd.exe", "*\\powershell.exe", "*\\pwsh.exe", "*\\wscript.exe", "*\\cscript.exe",
+              "*\\mshta.exe", "*\\rundll32.exe", "*\\regsvr32.exe", "*\\certutil.exe")
+| stats count min(_time) AS first_seen max(_time) AS last_seen
+        values(CommandLine) AS command_lines
+        BY host User ParentImage Image
+| convert ctime(first_seen) ctime(last_seen)
+| sort - count
+
+```
+  TRIAGE
+  1. Which document was open? Check ParentCommandLine for the file path.
+  2. Find the email that delivered it (message trace by recipient + time).
+  3. Did the child process download anything? (Sysmon EID 3 / EID 11)
+  4. Search all hosts for the same document name or hash: was it sent to others?
+
+  TUNING
+  - Some add-ins legitimately call cmd.exe. Allow-list by exact CommandLine.
+```
