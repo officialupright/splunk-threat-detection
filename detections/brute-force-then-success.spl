@@ -1,0 +1,28 @@
+| comment "
+  Detection : Brute force followed by a successful logon
+  MITRE     : T1110 Brute Force (T1110.001 Password Guessing, T1110.003 Password Spraying)
+  Data      : Windows Security Event Log (4625 failed logon, 4624 successful logon)
+  Logic     : A source IP with >= 10 failures AND >= 1 success in the search window
+  Severity  : High (Critical if the source is external and Logon_Type = 10 / RDP)
+  Author    : Ifeanyi Solomon Uneze
+"
+index=wineventlog (EventCode=4625 OR EventCode=4624) Logon_Type IN (3, 10)
+| eval outcome=if(EventCode=4624, "success", "failure")
+| stats count(eval(outcome="failure")) AS failures
+        count(eval(outcome="success")) AS successes
+        dc(TargetUserName)             AS distinct_accounts
+        values(TargetUserName)         AS accounts
+        values(host)                   AS targets
+        min(_time) AS first_seen max(_time) AS last_seen
+        BY IpAddress
+| where failures >= 10 AND successes >= 1
+| eval attack_type=if(distinct_accounts > 5, "Password spraying", "Password guessing")
+| convert ctime(first_seen) ctime(last_seen)
+| sort - failures
+
+| comment "
+  TUNING
+  - Exclude vulnerability scanners:   NOT IpAddress IN (\"10.0.0.50\")
+  - Exclude service accounts with known expired-password noise
+  - Lower the threshold for privileged accounts (e.g. admin*, svc_*)
+"
