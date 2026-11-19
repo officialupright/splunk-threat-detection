@@ -1,0 +1,30 @@
+```
+  Detection : Account added to the local Administrators group
+  MITRE     : T1098     Account Manipulation
+              T1136.001 Create Account: Local Account
+  Data      : Windows Security Event Log
+              4720 = user account created
+              4732 = member added to a security-enabled local group
+  Why       : Attackers create or promote accounts to keep admin access
+              even after the original malware is removed.
+  Severity  : Medium (High if the account was created in the same hour)
+  Author    : Ifeanyi Solomon Uneze
+```
+index=wineventlog (EventCode=4732 TargetUserName="Administrators") OR EventCode=4720
+| eval action=case(EventCode=4720, "account_created", EventCode=4732, "added_to_admins")
+| eval account_sid=coalesce(MemberSid, TargetSid)
+| stats values(action) AS actions
+        values(SubjectUserName) AS performed_by
+        min(_time) AS first_seen max(_time) AS last_seen
+        BY host account_sid
+| where mvcount(actions) > 0 AND isnotnull(mvfind(actions, "added_to_admins"))
+| eval severity=if(mvcount(actions) = 2 AND (last_seen - first_seen) < 3600, "HIGH - created and promoted within 1h", "MEDIUM")
+| convert ctime(first_seen) ctime(last_seen)
+| sort - severity
+
+```
+  TRIAGE
+  1. Is there a change ticket for this admin grant?
+  2. Who performed it (performed_by)? Is that account itself compromised?
+  3. Has the new admin account logged on anywhere yet? (EventCode=4624)
+```
